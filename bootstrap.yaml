@@ -1,0 +1,367 @@
+---
+- name: ceph cluster bootstrap
+  hosts: localhost
+  connection: local
+  vars:
+    # change these 3 folders to your deployment
+    project_dir: '/home/greg'
+    # folder with source images
+    images_dir: '/home/greg/VirtualMachines/source'
+    # folder with generated vm disks
+    guest_dir: '/home/greg/VirtualMachines'
+    os: 'rhel8.6'
+    os_image: 'rhel-8.6-x86_64-kvm.qcow2'
+    ssh_pubkey: '{{ lookup("file", "{{ project_dir }}/.ssh/id_rsa.pub") }}'
+    ssh_privatekey: '{{ lookup("file", "{{ project_dir }}/.ssh/id_rsa") }}'
+    subdomain: idm.home.lan
+    root_password: 'redhat'
+    public_network: 'virbr0'
+    cluster_network: 'virbr1'
+    deploy_targets:
+      - name: orchestrator
+        vcpus: 2
+        memory: 4096
+        root_disk_size: 32G
+        network:
+          - "{{ public_network }}"
+        extra_disk: []
+        user_data:
+          users:
+            - name: root
+              lock_passwd: false
+              hashed_passwd: "{{ root_password | password_hash('sha512') }}"
+            - name: admin
+              ssh_authorized_keys:
+                - "{{ ssh_pubkey }}"
+              sudo:
+                - 'ALL=(ALL) NOPASSWD: ALL'
+              groups: sudo
+              shell: /bin/bash
+          write_files:
+            - path: /home/admin/.ssh/config
+              content: |
+                Host ceph-* ceph-*.* 192.168.122.20*
+                User admin
+              permissions: '0600'
+              owner: 'admin:admin'
+              defer: true
+            - path: /home/admin/.ssh/id_rsa
+              content: |
+                "{{ ssh_privatekey }}"
+              permissions: '0400'
+              owner: 'admin:admin'
+              defer: true
+            - path: /etc/hosts
+              content: |
+                192.168.122.200   orchestrator.idm.home.lan orchestrator
+                192.168.122.201   ceph-0.idm.home.lan ceph-0
+                192.168.122.202   ceph-1.idm.home.lan ceph-1
+                192.168.122.203   ceph-2.idm.home.lan ceph-2
+                192.168.122.204   ceph-3.idm.home.lan ceph-3
+              append: true
+          runcmd:
+            # cloud-init in rhel8 and rhel9 appear to be based on v21 which doesnt support  write_files.defer :(
+            - chown -R admin:admin /home/admin
+            - nmcli con modify "System eth0" ipv4.method manual ipv6.method ignore ipv4.address 192.168.122.200/24 ipv4.gateway 192.168.122.1 ipv4.dns 192.168.122.1
+      - name: ceph-0
+        vcpus: 2
+        memory: 4096
+        root_disk_size: 32G
+        network:
+          - "{{ public_network }}"
+          - "{{ cluster_network }}"
+        extra_disk:
+          - name: ceph-0-data.qcow2
+            compression: zstd
+            size: 128G
+        user_data:
+          users:
+            - name: root
+              lock_passwd: false
+              hashed_passwd: "{{ root_password | password_hash('sha512') }}"
+            - name: admin
+              ssh_authorized_keys:
+                - "{{ ssh_pubkey }}"
+              sudo:
+                - 'ALL=(ALL) NOPASSWD: ALL'
+              groups: sudo
+              shell: /bin/bash
+          write_files:
+            - path: /etc/rc.d/rc.local
+              content: |
+                echo 0 >/sys/class/block/sda/queue/rotational
+              append: true
+            - path: /home/admin/.ssh/config
+              content: |
+                Host ceph-* ceph-*.* 192.168.122.20*
+                User admin
+              permissions: 0600
+              owner: admin:admin
+            - path: /etc/hosts
+              content: |
+                192.168.122.200   orchestrator.idm.home.lan orchestrator
+                192.168.122.201   ceph-0.idm.home.lan ceph-0
+                192.168.122.202   ceph-1.idm.home.lan ceph-1
+                192.168.122.203   ceph-2.idm.home.lan ceph-2
+                192.168.122.204   ceph-3.idm.home.lan ceph-3
+              append: true
+          runcmd:
+            - chown -R admin:admin /home/admin
+            - chmod +x /etc/rc.d/rc.local
+            - /etc/rc.d/rc.local
+            - nmcli con modify "System eth0" ipv4.method manual ipv6.method ignore ipv4.address 192.168.122.201/24 ipv4.gateway 192.168.122.1 ipv4.dns 192.168.122.1
+            - nmcli con modify "Wired connection 1" ipv4.method manual ipv6.method ignore ipv4.address 10.0.0.201/24
+      - name: ceph-1
+        vcpus: 2
+        memory: 4096
+        root_disk_size: 32G
+        network:
+          - "{{ public_network }}"
+          - "{{ cluster_network }}"
+        extra_disk:
+          - name: ceph-1-data.qcow2
+            compression: zstd
+            size: 128G
+        user_data:
+          users:
+            - name: root
+              lock_passwd: false
+              hashed_passwd: "{{ root_password | password_hash('sha512') }}"
+            - name: admin
+              ssh_authorized_keys:
+                - "{{ ssh_pubkey }}"
+              sudo:
+                - 'ALL=(ALL) NOPASSWD: ALL'
+              groups: sudo
+              shell: /bin/bash
+          write_files:
+            - path: /etc/rc.d/rc.local
+              content: |
+                echo 0 >/sys/class/block/sda/queue/rotational
+              append: true
+            - path: /home/admin/.ssh/config
+              content: |
+                Host ceph-* ceph-*.* 192.168.122.20*
+                User admin
+              permissions: 0600
+              owner: admin:admin
+            - path: /etc/hosts
+              content: |
+                192.168.122.200   orchestrator.idm.home.lan orchestrator
+                192.168.122.201   ceph-0.idm.home.lan ceph-0
+                192.168.122.202   ceph-1.idm.home.lan ceph-1
+                192.168.122.203   ceph-2.idm.home.lan ceph-2
+                192.168.122.204   ceph-3.idm.home.lan ceph-3
+              append: true
+          runcmd:
+            - chown -R admin:admin /home/admin
+            - chmod +x /etc/rc.d/rc.local
+            - /etc/rc.d/rc.local
+            - nmcli con modify "System eth0" ipv4.method manual ipv6.method ignore ipv4.address 192.168.122.202/24 ipv4.gateway 192.168.122.1 ipv4.dns 192.168.122.1
+            - nmcli con modify "Wired connection 1" ipv4.method manual ipv6.method ignore ipv4.address 10.0.0.202/24
+      - name: ceph-2
+        vcpus: 2
+        memory: 4096
+        root_disk_size: 32G
+        network:
+          - "{{ public_network }}"
+          - "{{ cluster_network }}"
+        extra_disk:
+          - name: ceph-2-data.qcow2
+            compression: zstd
+            size: 128G
+        user_data:
+          users:
+            - name: root
+              lock_passwd: false
+              hashed_passwd: "{{ root_password | password_hash('sha512') }}"
+            - name: admin
+              ssh_authorized_keys:
+                - "{{ ssh_pubkey }}"
+              sudo:
+                - 'ALL=(ALL) NOPASSWD: ALL'
+              groups: sudo
+              shell: /bin/bash
+          write_files:
+            - path: /etc/rc.d/rc.local
+              content: |
+                echo 0 >/sys/class/block/sda/queue/rotational
+              append: true
+            - path: /home/admin/.ssh/config
+              content: |
+                Host ceph-* ceph-*.* 192.168.122.20*
+                User admin
+              permissions: 0600
+              owner: admin:admin
+            - path: /etc/hosts
+              content: |
+                192.168.122.200   orchestrator.idm.home.lan orchestrator
+                192.168.122.201   ceph-0.idm.home.lan ceph-0
+                192.168.122.202   ceph-1.idm.home.lan ceph-1
+                192.168.122.203   ceph-2.idm.home.lan ceph-2
+                192.168.122.204   ceph-3.idm.home.lan ceph-3
+              append: true
+          runcmd:
+            - chown -R admin:admin /home/admin
+            - chmod +x /etc/rc.d/rc.local
+            - /etc/rc.d/rc.local
+            - nmcli con modify "System eth0" ipv4.method manual ipv6.method ignore ipv4.address 192.168.122.203/24 ipv4.gateway 192.168.122.1 ipv4.dns 192.168.122.1
+            - nmcli con modify "Wired connection 1" ipv4.method manual ipv6.method ignore ipv4.address 10.0.0.203/24
+      - name: ceph-4
+        vcpus: 2
+        memory: 4096
+        root_disk_size: 32G
+        network:
+          - "{{ public_network }}"
+          - "{{ cluster_network }}"
+        extra_disk:
+          - name: ceph-4-data.qcow2
+            compression: zstd
+            size: 128G
+        user_data:
+          users:
+            - name: root
+              lock_passwd: false
+              hashed_passwd: "{{ root_password | password_hash('sha512') }}"
+            - name: admin
+              ssh_authorized_keys:
+                - "{{ ssh_pubkey }}"
+              sudo:
+                - 'ALL=(ALL) NOPASSWD: ALL'
+              groups: sudo
+              shell: /bin/bash
+          write_files:
+            - path: /etc/rc.d/rc.local
+              content: |
+                echo 0 >/sys/class/block/sda/queue/rotational
+              append: true
+            - path: /home/admin/.ssh/config
+              content: |
+                Host ceph-* ceph-*.* 192.168.122.20*
+                User admin
+              permissions: 0600
+              owner: admin:admin
+            - path: /etc/hosts
+              content: |
+                192.168.122.200   orchestrator.idm.home.lan orchestrator
+                192.168.122.201   ceph-0.idm.home.lan ceph-0
+                192.168.122.202   ceph-1.idm.home.lan ceph-1
+                192.168.122.203   ceph-2.idm.home.lan ceph-2
+                192.168.122.204   ceph-3.idm.home.lan ceph-3
+              append: true
+          runcmd:
+            - chown -R admin:admin /home/admin
+            - chmod +x /etc/rc.d/rc.local
+            - /etc/rc.d/rc.local
+            - nmcli con modify "System eth0" ipv4.method manual ipv6.method ignore ipv4.address 192.168.122.204/24 ipv4.gateway 192.168.122.1 ipv4.dns 192.168.122.1
+            - nmcli con modify "Wired connection 1" ipv4.method manual ipv6.method ignore ipv4.address 10.0.0.204/24
+
+  tasks:
+    - name: cleanup tasks
+      tags: clean
+      block:
+      - name: clean up old instances
+        shell:
+          cmd: |
+            virsh destroy {{ item.name }}
+            virsh undefine {{ item.name }}
+        with_items: '{{ deploy_targets }}'
+        ignore_errors: yes
+        become: true
+        no_log: true    
+
+      - name: clean up old images and cloud-init data
+        file:
+          path: '{{ guest_dir }}/{{ item.name }}.qcow2'
+          state: absent
+        with_items: "{{ deploy_targets }}"
+        no_log: true
+      - file:
+          path: '{{ images_dir }}/{{ item.name }}/'
+          state: absent
+        with_items: "{{ deploy_targets }}"
+        no_log: true
+      - file:
+          path: '{{ guest_dir }}/{{ item.1.name }}'
+          state: absent
+        loop: "{{ deploy_targets | subelements('extra_disk') }}"
+        loop_control:
+          label: "{{ item.0.name }}"
+        no_log: true
+
+    - name: initialize cloud-init folders
+      file:
+        path: '{{ images_dir }}/{{ item.name }}'
+        state: directory
+      with_items: '{{ deploy_targets }}'
+      no_log: true
+      
+    - name: create linked clone from base image for each deploy_target
+      command: qemu-img create -b {{ images_dir }}/{{ os_image }} -f qcow2 -F qcow2 -o {{ item.1.compression | default("compression_type=zstd") }} {{ guest_dir }}/{{ item.name }}.qcow2 {{ item.root_disk_size }}
+      with_items: "{{ deploy_targets }}"
+      no_log: true
+
+    - name: create thin volumes defined in extra_disk
+      command: qemu-img create -f qcow2 -o compression_type=zstd {{ guest_dir }}/{{ item.1.name }} {{ item.1.size }}
+      loop: "{{ deploy_targets | subelements('extra_disk') }}"
+      loop_control:
+        label: "{{ item.0.name }}"
+      no_log: true
+
+    - name: create cloud-init metadata
+      copy:
+        content: '{{ metadata | default({}) | combine({ "instance-id": fqdn, "local-hostname": fqdn }) | to_nice_yaml }}'
+        dest: '{{ images_dir }}/{{ item.name }}/meta-data'
+      vars:
+        metadata: {}
+        fqdn: '{{ item.name }}.{{ subdomain }}'
+      with_items: '{{ deploy_targets }}'
+      no_log: true
+
+    - name: Create cloud-init user-data
+      copy:
+        content: '{{ item.user_data | to_nice_yaml }}'
+        dest: '{{ images_dir }}/{{ item.name }}/user-data'
+      with_items: '{{ deploy_targets }}'
+      no_log: true      
+    - lineinfile:
+        path: '{{ images_dir }}/{{ item.name }}/user-data'
+        insertbefore: BOF
+        line: "#cloud-config"
+      with_items: '{{ deploy_targets }}'
+      no_log: true
+
+    - name: Create cloud-init configuration image
+      command: genisoimage -output {{ images_dir }}/{{ item.name }}/{{ item.name }}-cidata.iso -V cidata -r -J {{ images_dir }}/{{ item.name }}/user-data {{ images_dir }}/{{ item.name }}/meta-data
+      with_items: '{{ deploy_targets }}'
+      no_log: true
+
+    - name: Create the VM
+      command: |
+        virt-install
+        --name={{ item.name }} 
+        --ram={{ item.memory }} 
+        --vcpus={{ item.vcpus }} 
+        --import 
+        --disk path={{ guest_dir }}/{{ item.name }}.qcow2,format=qcow2 
+        --disk path={{ images_dir }}/{{ item.name }}/{{ item.name }}-cidata.iso,device=cdrom 
+        {% for disk in item.extra_disk %}
+          --disk {{ guest_dir}}/{{ disk.name }},bus=scsi,discard=unmap
+        {% endfor %}
+        --os-variant {{ os }}
+        {% for nic in item.network %}
+          --network bridge={{ nic }},model=virtio
+        {% endfor %}   
+        --graphics vnc,listen=0.0.0.0 
+        --noautoconsole
+      become: true
+      async: 180
+      poll: 0
+      register: virt_install
+      with_items: '{{ deploy_targets }}'
+      no_log: true
+    - async_status: jid={{ item.ansible_job_id }}
+      register: virt_install_jobs
+      until: virt_install_jobs.finished
+      retries: 300
+      with_items: '{{ virt_install.results }}'
